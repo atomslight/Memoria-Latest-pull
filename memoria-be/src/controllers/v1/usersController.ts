@@ -1,0 +1,34 @@
+import { Request, Response } from 'express';
+import { prisma } from '../../config/database';
+import { UserSearchSchema } from '../../validators';
+
+/**
+ * GET /api/v1/users/search?q=
+ *
+ * Search users by email or name (case-insensitive contains).
+ * Excludes the requesting user from results.
+ */
+export const searchUsers = async (req: Request, res: Response): Promise<void> => {
+  const parsed = UserSearchSchema.safeParse(req.query);
+  if (!parsed.success) {
+    res.status(400).json({ error: 'Validation error', details: parsed.error.errors });
+    return;
+  }
+
+  const { q } = parsed.data;
+  const userId = req.user!.id;
+
+  const users = await prisma.user.findMany({
+    where: {
+      id: { not: userId },
+      OR: [
+        { email: { contains: q, mode: 'insensitive' } },
+        { name: { contains: q, mode: 'insensitive' } },
+      ],
+    },
+    select: { id: true, name: true, email: true },
+    take: 20,
+  });
+
+  res.json({ users });
+};
