@@ -31,7 +31,15 @@ export const aiCaptionWorker = new Worker<AICaptionJobData>(
           processingStatus: 'completed',
         },
       });
-      
+      if (mood) {
+        await prisma.photo.update({
+          where: { id: photoId },
+          data: {
+            mood: mood,
+          },
+        });
+        console.log(`✨ AI detected and saved mood for photo ${photoId}: ${mood}`);
+      }
       // Enqueue embedding generation job (fire-and-forget, don't block caption success)
       try {
         await aiEmbeddingQueue.add('generate-embedding', {

@@ -3,7 +3,7 @@ import { aiInferenceClient } from './aiInferenceClient';
 
 interface CaptionResult {
   caption: string;
-  mood: string;
+  mood?: string;
   confidence: number;
 }
 

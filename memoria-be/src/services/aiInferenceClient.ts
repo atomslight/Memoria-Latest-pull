@@ -6,6 +6,7 @@ interface EmbeddingResponse {
 
 interface CaptionResponse {
   caption: string;
+  mood?: string;
   confidence: number;
 }
 
@@ -57,7 +58,7 @@ export const aiInferenceClient = {
   async generateCaption(
     imageUrl: string,
     mimeType: string
-  ): Promise<{ caption: string; confidence: number }> {
+  ): Promise<{ caption: string; confidence: number; mood?: string }> {
     return postJson<CaptionResponse>('/internal/v1/captions', { imageUrl, mimeType });
   },
 };
