@@ -140,7 +140,27 @@ export default function MemoryDetailScreen() {
             )}
 
             <View style={styles.divider} />
-
+			 {/* ADDED FOR MOOD,CLUSTER & LOCATION */}
+            <View style={styles.chipsRow}>
+              {memory.mood && (
+                <View style={[styles.chip, styles.chipMood]}>
+                  <Text style={styles.chipMoodText}>{memory.mood}</Text>
+                </View>
+              )}
+              {memory.cluster && (
+                <View style={styles.chip}>
+                  <Ionicons name="grid-outline" size={12} color={COLORS.textSecondary} />
+                  <Text style={styles.chipText}>{memory.cluster}</Text>
+                </View>
+              )}
+              {memory.locationName && (
+                <View style={styles.chip}>
+                  <Ionicons name="location-outline" size={12} color={COLORS.textSecondary} />
+                  <Text style={styles.chipText}>{memory.locationName}</Text>
+                </View>
+              )}
+            </View>
+            {/* END OF MOOD,CLUSTER & LOCATION */}
             {/* Date */}
             <View style={styles.metaRow}>
               <Ionicons name="calendar-outline" size={16} color={COLORS.textTertiary} />
@@ -234,6 +254,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: COLORS.border,
   },
+  
   caption: {
     ...TYPOGRAPHY.body1,
     color: COLORS.textPrimary,
@@ -256,6 +277,24 @@ const styles = StyleSheet.create({
     color: COLORS.textTertiary,
     fontStyle: 'italic',
     marginBottom: SPACING.md,
+  },
+  chipsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: SPACING.sm,
+    marginBottom: SPACING.md,
+  },
+  chip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: COLORS.background, // or a slightly darker gray
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+  },
+  chipMood: {
+    backgroundColor: COLORS.brandYellow,
   },
   divider: {
     height: 1,

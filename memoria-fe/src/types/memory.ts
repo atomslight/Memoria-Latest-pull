@@ -16,6 +16,9 @@ export interface Memory {
   height: number;
   capturedAt: Date | string;
   caption?: string | null;
+  mood?: string | null;
+  cluster?: string | null;
+  locationName?: string | null;
   captionStatus?: 'pending' | 'completed' | 'failed' | null;
   createdAt: Date | string;
   updatedAt: Date | string;
