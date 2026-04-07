@@ -5,16 +5,18 @@ const genAI = new GoogleGenerativeAI(aiServiceEnv.GEMINI_API_KEY);
 const OPENAI_CHAT_URL = 'https://api.openai.com/v1/chat/completions';
 
 function captionPrompt(): string {
-  return `Generate a brief, descriptive caption for this photo in 1-2 sentences.
-Focus on what you see, the mood, and any notable details.
-Be natural and conversational, as if describing the photo to a friend.`;
+  return `Come up with a short engaging 1–3 sentence caption for the image, focusing on what you see, the mood, the feel and a few key details.
+Keep it simple and natural—don’t go into too much detail or sound technical.
+Add a touch of feeling so it captures the overall vibe in a relatable way.
+Stick to what’s visible, and write it like you’re casually describing it to a friend.
+Output must strictly follow: {"caption":"<text>","mood":"<emoji + mood>"} and return EXACTLY one valid JSON object.`;
 }
 
 async function generateCaptionWithGemini(
   base64: string,
   mimeType: string
 ): Promise<{ caption: string; confidence: number }> {
-  const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
+  const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash',generationConfig: { temperature: 0.8 } });
   const result = await model.generateContent([
     captionPrompt(),
     {
@@ -24,8 +26,24 @@ async function generateCaptionWithGemini(
       },
     },
   ]);
-  const caption = result.response.text().trim();
-  return { caption, confidence: 0.85 };
+  const raw = result.response.text();
+  console.log("Whole result that was gen: \n",raw)
+  const jsonMatch = raw.match(/\{[\s\S]*\}/);
+
+  if (!jsonMatch) {
+      console.error('No JSON found:', raw);
+      return res.status(500).json({ error: 'Invalid model output' });
+    }
+  let parsed;
+  try {
+      parsed = JSON.parse(jsonMatch[0]);
+    } catch (e) {
+      console.error('JSON parse failed:', jsonMatch[0]);
+      return res.status(500).json({ error: 'Invalid JSON structure' });
+    }
+  const caption = parsed.caption.trim() ?? 'unknown';
+  const mood = parsed.mood ?? 'unknown';
+  return { caption,mood,confidence: 0.85};
 }
 
 async function generateCaptionWithOpenAI(
