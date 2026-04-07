@@ -20,7 +20,7 @@ export const aiCaptionWorker = new Worker<AICaptionJobData>(
     
     try {
       // Generate caption using Gemini API
-      const { caption, confidence } = await captionService.generateCaption(storagePath, mimeType);
+      const { caption,mood, confidence } = await captionService.generateCaption(storagePath, mimeType);
       
       // Update AIResult with caption and mark as completed
       await prisma.aIResult.update({
@@ -52,6 +52,7 @@ export const aiCaptionWorker = new Worker<AICaptionJobData>(
         success: true,
         photoId,
         caption,
+		mood,
         confidence,
       };
     } catch (error) {
