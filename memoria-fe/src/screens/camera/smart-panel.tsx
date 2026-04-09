@@ -15,6 +15,7 @@ import { useNavigation, useRoute } from '@react-navigation/native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { COLORS, TYPOGRAPHY, SPACING, BORDER_RADIUS } from '../../constants';
 import { api } from '../../utils/api';
+import { getCurrentLocation } from '../../utils/location';
 
 type Mood = '😊 Happy' | '💪 Hustle' | '🌿 Calm' | '🌅 Nostalgic' | '🎉 Excited';
 type Cluster = 'Friends' | 'Family' | 'Work' | 'Travel' | 'Solo';
@@ -64,6 +65,11 @@ export default function SmartPanelScreen() {
       if (selectedMood) formData.append('mood', selectedMood);
       if (selectedCluster) formData.append('cluster', selectedCluster);
       if (locationName.trim()) formData.append('locationName', locationName.trim());
+
+      const location = await getCurrentLocation();
+      if (location) {
+        formData.append('locationCoordinates', JSON.stringify(location));
+      }
 
       await api.memories.upload(formData);
       navigation.reset({ index: 0, routes: [{ name: 'Tabs' }] });

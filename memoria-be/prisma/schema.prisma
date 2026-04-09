@@ -40,6 +40,8 @@ model Photo {
   mood            String?
   cluster         String?
   locationName    String?   @map("location_name")
+  latitude        Float?
+  longitude       Float?
   createdAt       DateTime  @default(now()) @map("created_at")
   updatedAt       DateTime  @updatedAt @map("updated_at")
 
