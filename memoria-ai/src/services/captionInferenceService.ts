@@ -15,7 +15,7 @@ Output must strictly follow: {"caption":"<text>","mood":"<emoji + mood>"} and re
 async function generateCaptionWithGemini(
   base64: string,
   mimeType: string
-): Promise<{ caption: string; confidence: number }> {
+): Promise<{ caption: string; confidence: number; mood?: string }> {
   const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash',generationConfig: { temperature: 0.8 } });
   const result = await model.generateContent([
     captionPrompt(),
@@ -32,23 +32,23 @@ async function generateCaptionWithGemini(
 
   if (!jsonMatch) {
       console.error('No JSON found:', raw);
-      return res.status(500).json({ error: 'Invalid model output' });
+      throw new Error('Invalid model output');
     }
   let parsed;
   try {
       parsed = JSON.parse(jsonMatch[0]);
     } catch (e) {
       console.error('JSON parse failed:', jsonMatch[0]);
-      return res.status(500).json({ error: 'Invalid JSON structure' });
+      throw new Error('Invalid JSON structure');
     }
-  const caption = parsed.caption.trim() ?? 'unknown';
+  const caption = parsed.caption?.trim() ?? 'unknown';
   const mood = parsed.mood ?? 'unknown';
   return { caption,mood,confidence: 0.85};
 }
 
 async function generateCaptionWithOpenAI(
   imageUrl: string
-): Promise<{ caption: string; confidence: number }> {
+): Promise<{ caption: string; confidence: number; mood?: string }> {
   const response = await fetch(OPENAI_CHAT_URL, {
     method: 'POST',
     headers: {
@@ -78,17 +78,33 @@ async function generateCaptionWithOpenAI(
   const data = (await response.json()) as {
     choices?: Array<{ message?: { content?: string } }>;
   };
-  const caption = data.choices?.[0]?.message?.content?.trim();
-  if (!caption) {
+  const raw = data.choices?.[0]?.message?.content?.trim();
+  if (!raw) {
     throw new Error('OpenAI caption response missing text content');
   }
-  return { caption, confidence: 0.82 };
+
+  const jsonMatch = raw.match(/\{[\s\S]*\}/);
+  if (!jsonMatch) {
+    throw new Error('No JSON found in OpenAI output');
+  }
+
+  let parsed;
+  try {
+    parsed = JSON.parse(jsonMatch[0]);
+  } catch (e) {
+    throw new Error('Invalid JSON structure in OpenAI output');
+  }
+
+  const caption = parsed.caption?.trim() ?? 'unknown';
+  const mood = parsed.mood ?? 'unknown';
+
+  return { caption, mood, confidence: 0.82 };
 }
 
 export async function generateCaptionFromImageUrl(
   imageUrl: string,
   mimeType: string
-): Promise<{ caption: string; confidence: number }> {
+): Promise<{ caption: string; confidence: number; mood?: string }> {
   const res = await fetch(imageUrl);
   if (!res.ok) {
     throw new Error(`Failed to download image for caption: HTTP ${res.status}`);

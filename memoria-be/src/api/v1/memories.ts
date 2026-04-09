@@ -314,24 +314,33 @@ router.post('/', upload.single('file'), async (req: Request, res: Response) => {
       cluster: req.body.cluster,
       locationName: req.body.locationName,
       caption: req.body.caption,
+      locationCoordinates: req.body.locationCoordinates,
     });
 
-    // Apply mood/cluster/locationName if provided
-    if (meta.success && (meta.data.mood || meta.data.cluster || meta.data.locationName)) {
-      await prisma.photo.update({
-        where: { id: photo.id },
-        data: {
-          mood: meta.data.mood,
-          cluster: meta.data.cluster,
-          locationName: meta.data.locationName,
-        },
-      });
+    // Apply mood/cluster/locationName/coordinates if provided
+    if (meta.success) {
+      const updateData: any = {};
+
+      if (meta.data.mood) updateData.mood = meta.data.mood;
+      if (meta.data.cluster) updateData.cluster = meta.data.cluster;
+      if (meta.data.locationName) updateData.locationName = meta.data.locationName;
+
+      // Save coordinates to Photo model if they exist
+      if (meta.data.locationCoordinates) {
+        updateData.latitude = meta.data.locationCoordinates.latitude;
+        updateData.longitude = meta.data.locationCoordinates.longitude;
+      }
+
+      if (Object.keys(updateData).length > 0) {
+        await prisma.photo.update({
+          where: { id: photo.id },
+          data: updateData,
+        });
+      }
     }
 
-    // If caption provided, save directly and skip AI queue
+    // Handle Caption Queue
     const captionProvided = meta.success && meta.data.caption;
-
-    // Create AIResult record
     await prisma.aIResult.create({
       data: {
         photoId: photo.id,
@@ -340,7 +349,6 @@ router.post('/', upload.single('file'), async (req: Request, res: Response) => {
       },
     });
 
-    // Enqueue caption generation job (non-blocking) only if no caption provided
     if (!captionProvided) {
       try {
         await aiCaptionQueue.add('generate-caption', {
@@ -353,6 +361,21 @@ router.post('/', upload.single('file'), async (req: Request, res: Response) => {
       } catch (queueError) {
         console.error('Failed to enqueue caption job:', queueError);
       }
+    }
+
+    // Always enqueue metadata extraction job (this is where reverse geocoding happens later)
+    try {
+      // @ts-ignore - metadataQueue needs to be imported, but we'll import it below if missing or ignore
+      const { metadataQueue } = await import('../../queues/metadata');
+      await metadataQueue.add('extract-metadata', {
+        photoId: photo.id,
+        userId,
+        storagePath: fileName,
+        mimeType: req.file.mimetype,
+      });
+      console.log(`Enqueued metadata job for photo ${photo.id}`);
+    } catch (queueError) {
+      console.error('Failed to enqueue metadata job:', queueError);
     }
 
     return res.status(201).json({
