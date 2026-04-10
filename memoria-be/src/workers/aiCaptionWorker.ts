@@ -80,7 +80,7 @@ export const aiCaptionWorker = new Worker<AICaptionJobData>(
 
 // Event listeners
 aiCaptionWorker.on('ready', () => {
-  console.log('✅ AI caption worker is ready and listening for jobs');
+  console.log('✅ AI caption worker is ready & listening for jobs');
 });
 
 aiCaptionWorker.on('active', (job) => {

@@ -61,6 +61,14 @@ model AIResult {
   id                String   @id @default(uuid())
   photoId           String   @unique @map("photo_id")
   caption           String?
+  mood              String?
+  locationName    String?   @map("location_name")
+  latitude          Float?   @map("latitude")
+  longitude         Float?   @map("longitude")
+  timesVisitedLocation Int?      @map("times_visited_location")
+  isItFrequent    Float?  @map("is_it_frequent")
+  usageLimitBlocked Float?  @map("usage_limit_blocked")
+
   captionConfidence Float?   @map("caption_confidence")
   faces             Json?
   metadata          Json?

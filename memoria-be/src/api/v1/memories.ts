@@ -191,6 +191,7 @@ router.get('/trash', async (req: Request, res: Response) => {
           capturedAt: photo.capturedAt,
           deletedAt: photo.deletedAt,
           caption: photo.aiResult?.caption || null,
+		  mood: photo.mood || null,
           captionStatus: photo.aiResult?.processingStatus || null,
           createdAt: photo.createdAt,
           updatedAt: photo.updatedAt,
@@ -254,7 +255,7 @@ router.get('/:id', async (req: Request, res: Response): Promise<void> => {
       thumbnailUrl,
       mood: photo.mood,
       cluster: photo.cluster,
-      locationName: photo.locationName,
+      locationName: photo.aiResult?locationName,
     });
   } catch (error) {
     console.error('Error fetching memory:', error);
@@ -275,10 +276,10 @@ router.post('/', upload.single('file'), async (req: Request, res: Response) => {
     if (!req.file) {
       return res.status(400).json({ error: 'No file uploaded' });
     }
-
+	
     // Get userId from authenticated user
     const userId = req.user!.id; // Authenticated via auth middleware
-
+	
     // Generate unique filename
     const timestamp = Date.now();
     const randomStr = Math.random().toString(36).substring(7);
@@ -307,7 +308,7 @@ router.post('/', upload.single('file'), async (req: Request, res: Response) => {
         capturedAt: new Date(),
       },
     });
-
+	
     // Parse optional metadata fields from multipart form body
     const meta = UploadMemoryMetaSchema.safeParse({
       mood: req.body.mood,
@@ -315,6 +316,9 @@ router.post('/', upload.single('file'), async (req: Request, res: Response) => {
       locationName: req.body.locationName,
       caption: req.body.caption,
     });
+	console.log('📦 req.body:', req.body);
+	console.log('📍 locationName raw:', req.body.locationName);
+	console.log('✅ meta parse result:', meta);
 
     // Apply mood/cluster/locationName if provided
     if (meta.success && (meta.data.mood || meta.data.cluster || meta.data.locationName)) {
@@ -330,12 +334,15 @@ router.post('/', upload.single('file'), async (req: Request, res: Response) => {
 
     // If caption provided, save directly and skip AI queue
     const captionProvided = meta.success && meta.data.caption;
-
+	// If location provided, save directly and skip metaData queue
+	const locationNameGiven = meta.success && meta.data.locationName;
+	
     // Create AIResult record
     await prisma.aIResult.create({
       data: {
         photoId: photo.id,
         caption: captionProvided ? meta.data!.caption : null,
+		locationName: locationNameGiven ? meta.data!.locationName : null,
         processingStatus: captionProvided ? 'completed' : 'pending',
       },
     });
@@ -355,6 +362,19 @@ router.post('/', upload.single('file'), async (req: Request, res: Response) => {
       }
     }
 
+	if (!locationNameGiven) {
+      try {
+        await metadataWorker.add('metadata', {
+          photoId: photo.id,
+          userId,
+          storagePath: fileName,
+          mimeType: req.file.mimetype,
+        });
+        console.log(`Enqueued metadata job for photo ${photo.id}`);
+      } catch (queueError) {
+        console.error('Failed to enqueue metadata job:', queueError);
+      }
+    }
     return res.status(201).json({
       id: photo.id,
       url: urlData.publicUrl,

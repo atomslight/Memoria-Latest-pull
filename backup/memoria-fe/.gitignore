@@ -1,0 +1,93 @@
+# OSX
+#
+.DS_Store
+
+# Xcode
+#
+build/
+*.pbxuser
+!default.pbxuser
+*.mode1v3
+!default.mode1v3
+*.mode2v3
+!default.mode2v3
+*.perspectivev3
+!default.perspectivev3
+xcuserdata
+*.xccheckout
+*.moved-aside
+DerivedData
+*.hmap
+*.ipa
+*.xcuserstate
+
+# Android/IntelliJ
+#
+vendor/
+build/
+.idea
+.gradle
+local.properties
+*.iml
+*/release/*
+android/app/release/
+
+# Android build outputs (never commit — GitHub rejects large .so / APK)
+android/app/build/
+android/app/.cxx/
+android/build/
+android/.gradle/
+*.apk
+*.aab
+# node.js
+#
+node_modules/
+npm-debug.log
+yarn-error.log
+package-lock.json
+
+# BUCK
+buck-out/
+\.buckd/
+*.keystore
+!debug.keystore
+
+# fastlane
+#
+# It is recommended to not store the screenshots in the git repo. Instead, use fastlane to re-generate the
+# screenshots whenever they are needed.
+# For more information about the recommended setup visit:
+# https://docs.fastlane.tools/best-practices/source-control/
+
+*/fastlane/report.xml
+*/fastlane/Preview.html
+*/fastlane/screenshots
+
+# Bundle artifact
+*.jsbundle
+
+# CocoaPods
+/ios/Pods/
+
+#coverage
+coverage/
+java_pid17399.hprof
+*.hprof
+
+yarn.lock
+
+commit_messages.txt
+firebase-debug.log
+.yarn
+.jest-cache/*
+
+# ESLint cache
+.eslintcache
+.eslintcache
+
+# Assets
+ios/assets/src/assets/icons
+ios/assets/src/assets/images
+ios/assets/src/assets/fonts
+ios/assets/src/assets/video
+ios/assets/src/assets/audio

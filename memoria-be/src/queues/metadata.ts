@@ -27,5 +27,5 @@ export const metadataQueue = new Queue('metadata', {
 export interface MetadataJobData {
   photoId: string;
   userId: string;
-  filePath: string;
+  storagePath: string;
 }

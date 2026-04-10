@@ -13,7 +13,8 @@ import {
   Image,
 } from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
-import { useState } from 'react';
+import { getCurrentLocation } from '../../utils/location';
+import { useState, useEffect } from 'react';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { COLORS, TYPOGRAPHY, SPACING, BORDER_RADIUS } from '../../constants';
 import { api } from '../../utils/api';
@@ -45,6 +46,11 @@ export default function PostCaptureScreen() {
   const [caption, setCaption] = useState('');
   const [selectedMood, setSelectedMood] = useState<Mood | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [location, setLocation] = useState<any>(null);
+
+  useEffect(() => {
+    getCurrentLocation().then(setLocation).catch(() => setLocation(null));
+  }, []);
 
   const aspectRatio = getAspectRatio(activeRatio);
   const imageContainerStyle = aspectRatio
@@ -64,14 +70,17 @@ export default function PostCaptureScreen() {
         name: fileName,
         type: mimeType,
       } as unknown as Blob);
-
+		//If caption is being sent?
       if (caption.trim()) {
         formData.append('caption', caption.trim());
-      }
+      } //If caption is being sent?  (Here i have to make it detect automatically mood)
       if (selectedMood) {
         formData.append('mood', selectedMood);
       }
-
+	  if (location) {
+		// Convert { latitude: 12.34, longitude: 56.78 } into a string
+		formData.append('locationCoordinates', JSON.stringify(location));
+		}
       await api.memories.upload(formData);
       navigation.reset({ index: 0, routes: [{ name: 'Tabs' }] });
     } catch (err: unknown) {

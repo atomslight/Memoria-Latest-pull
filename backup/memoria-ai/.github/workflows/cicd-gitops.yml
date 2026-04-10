@@ -1,0 +1,34 @@
+name: Deploy memoria-be
+
+on:
+  push:
+    branches:
+      - dev
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    name: SSH Deploy and Restart PM2
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Deploy over SSH
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ubuntu
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          port: 22
+          script_stop: true
+          script: |
+            export NVM_DIR="/home/ubuntu/.nvm"
+            . "$NVM_DIR/nvm.sh"
+            cd /home/ubuntu/memoria-ai
+            git checkout dev
+            git stash || true
+            git pull origin dev
+            git stash pop || true
+            pm2 restart memoria-ai
