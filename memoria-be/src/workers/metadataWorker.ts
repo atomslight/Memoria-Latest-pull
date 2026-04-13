@@ -4,8 +4,8 @@ import { MetadataJobData } from '../queues/metadata';
 import { prisma } from '../config/database';
 import { redis } from '../config/redis'; // your ioredis instance
 
-// Cache geocoding results for 90 days — most coords repeat (same city)
-const GEO_CACHE_TTL = 60 * 60 * 24 * 90;
+// Cache geocoding results for 24 hours — most coords repeat (same city)
+const GEO_CACHE_TTL = 60 * 60 * 24;
 
 function buildCacheKey(lat: number, lng: number): string {
   // Round to 4 decimal places (~11m accuracy) to maximise cache hits
@@ -18,9 +18,9 @@ async function tryBigDataCloud(lat: number, lng: number): Promise<string | null>
   try {
     const url = `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lng}&localityLanguage=en`;
     const res = await fetch(url, { signal: AbortSignal.timeout(4000) });
-    if (!res.ok) return null;
+    if (!res.ok) return null; 
 
-    const data = await res.json();
+    const data = await res.json() as any;
     const location =
       data.city ||
       data.locality ||
@@ -45,7 +45,7 @@ async function tryPhoton(lat: number, lng: number): Promise<string | null> {
     });
     if (!res.ok) return null;
 
-    const data = await res.json();
+    const data = await res.json() as any;
     const props = data?.features?.[0]?.properties;
     if (!props) return null;
 
@@ -84,7 +84,7 @@ async function reverseGeocode(lat: number, lng: number): Promise<string | null> 
   // 4. Cache the result (even nulls, to avoid hammering APIs on bad coords)
   await redis.set(cacheKey, result ?? '__null__', 'EX', GEO_CACHE_TTL);
 
-  return result;
+  return result; 
 }
 
 export const metadataWorker = new Worker<MetadataJobData>(
@@ -93,7 +93,7 @@ export const metadataWorker = new Worker<MetadataJobData>(
     const { photoId, userId, storagePath: _filePath } = job.data;
     console.log(`Processing metadata for photo ${photoId} (user: ${userId})`);
 
-    const photo = await prisma.aIResult.findUnique({ where: { id: photoId } });
+    const photo = await prisma.aIResult.findUnique({ where: { photoId: photoId } });
     let newLocationName: string | null = null;
 
     if (photo?.latitude && photo?.longitude && !photo.locationName) {
@@ -101,8 +101,8 @@ export const metadataWorker = new Worker<MetadataJobData>(
       newLocationName = await reverseGeocode(photo.latitude, photo.longitude);
 
       if (newLocationName) {
-        await prisma.photo.update({
-          where: { id: photoId },
+        await prisma.aIResult.update({
+          where: { photoId: photoId },
           data: { locationName: newLocationName },
         });
         console.log(`✅ ${photoId} → ${newLocationName}`);

@@ -9,6 +9,13 @@ interface CaptionResponse {
   mood?:string;
   confidence: number;
 }
+interface FaceDetectionResponse {
+  x?: number;
+  y?: number;
+  width?: number;
+  height?: number;
+  label?: string;
+}
 
 function baseUrl(): string {
   return env.AI_SERVICE_URL.replace(/\/$/, '');
@@ -31,6 +38,7 @@ async function postJson<T>(path: string, body: unknown): Promise<T> {
 
   if (!res.ok) {
     const text = await res.text();
+    console.error('AI inference service error response', { url, status: res.status, body: text });
     throw new Error(`AI service ${path} failed: ${res.status} ${text}`);
   }
 
@@ -60,5 +68,12 @@ export const aiInferenceClient = {
     mimeType: string
   ): Promise<{ caption: string;mood?: string; confidence: number }> {
     return postJson<CaptionResponse>('/internal/v1/captions', { imageUrl, mimeType });
+  },
+
+  async postFaceDetection(
+    imageUrl: string,
+    mimeType: string
+  ): Promise<FaceDetectionResponse[]> {
+    return postJson<FaceDetectionResponse[]>('/internal/v1/face-detection', { imageUrl, mimeType });
   },
 };

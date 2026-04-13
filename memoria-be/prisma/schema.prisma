@@ -66,8 +66,8 @@ model AIResult {
   latitude          Float?   @map("latitude")
   longitude         Float?   @map("longitude")
   timesVisitedLocation Int?      @map("times_visited_location")
-  isItFrequent    Float?  @map("is_it_frequent")
-  usageLimitBlocked Float?  @map("usage_limit_blocked")
+  isItFrequent      Boolean?  @map("is_it_frequent")
+  usageLimitBlocked Boolean?  @map("usage_limit_blocked")
 
   captionConfidence Float?   @map("caption_confidence")
   faces             Json?

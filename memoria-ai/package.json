@@ -11,6 +11,10 @@
   },
   "dependencies": {
     "@ai-sdk/openai": "^3.0.30",
+    "@napi-rs/canvas": "^0.1.97",
+    "@tensorflow/tfjs-node": "^4.22.0",
+    "@vladmandic/face-api": "^1.7.15",
+    "canvas": "^3.2.3",
     "@google/generative-ai": "^0.24.1",
     "ai": "^6.0.97",
     "dotenv": "^16.3.1",

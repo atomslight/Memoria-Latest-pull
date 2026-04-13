@@ -16,12 +16,15 @@ import aiRouter from './routes/v1/aiRoutes';
 import internalServiceRouter from './routes/internal/serviceRoutes';
 import { aiCaptionWorker } from './workers/aiCaptionWorker';
 import { embeddingWorker } from './workers/embeddingWorker';
-
+import { metadataWorker } from './workers/metadataWorker';
 console.log('🤖 Starting AI caption worker...');
 if (aiCaptionWorker) {
   console.log('✅ AI caption worker initialized');
 }
-
+console.log('📍 Starting metadata worker...');
+if (metadataWorker) {
+  console.log('✅ Metadata worker initialized');
+}
 console.log('🔮 Starting embedding worker...');
 if (embeddingWorker) {
   console.log('✅ Embedding worker initialized');

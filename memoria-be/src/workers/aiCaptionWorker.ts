@@ -21,13 +21,15 @@ export const aiCaptionWorker = new Worker<AICaptionJobData>(
     try {
       // Generate caption using Gemini API
       const { caption,mood, confidence } = await captionService.generateCaption(storagePath, mimeType);
-      
+      const resolvedCaption = caption || 'Caption not generated';
+      const resolvedMood = mood || 'Mood not generated';
+      const resolvedConfidence = confidence ?? null;
       // Update AIResult with caption and mark as completed
       await prisma.aIResult.update({
         where: { photoId },
         data: {
-          caption,
-          captionConfidence: confidence,
+          caption:resolvedCaption,
+          captionConfidence: resolvedConfidence,
           processingStatus: 'completed',
         },
       });
@@ -35,10 +37,10 @@ export const aiCaptionWorker = new Worker<AICaptionJobData>(
         await prisma.photo.update({
           where: { id: photoId },
           data: {
-            mood: mood,
+            mood: resolvedMood,
           },
         });
-        console.log(`✨ AI detected and saved mood for photo ${photoId}: ${mood}`);
+        console.log(`✨ AI detected and saved mood for photo ${photoId}: ${resolvedMood}`);
       }
       // Enqueue embedding generation job (fire-and-forget, don't block caption success)
       try {
@@ -54,14 +56,14 @@ export const aiCaptionWorker = new Worker<AICaptionJobData>(
         // Don't throw — caption job still succeeds
       }
 
-      console.log(`✅ AI caption generated for photo ${photoId}: "${caption}"`);
+      console.log(`✅ AI caption generated for photo ${photoId}: "${resolvedCaption}"`);
       
       return {
         success: true,
         photoId,
-        caption,
-		mood,
-        confidence,
+        caption: resolvedCaption,
+        mood: resolvedMood,
+        confidence: resolvedConfidence,
       };
     } catch (error) {
       console.error(`❌ Caption generation failed for photo ${photoId}:`, error);

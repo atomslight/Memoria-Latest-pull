@@ -1,15 +1,13 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { aiServiceEnv } from '../config/env';
-import { error } from 'console';
+import { error } from 'console';  
 
 const genAI = new GoogleGenerativeAI(aiServiceEnv.GEMINI_API_KEY);
 const OPENAI_CHAT_URL = 'https://api.openai.com/v1/chat/completions';
 
 function captionPrompt(): string {
-  return `Generate a short engaging 1–3 sentence caption for the image, focusing on what you see, the mood(sentiment:example-Happy,Sad,Angry,Nostalgic etc.) the feel and a few key details.
-Keep it casual and natural—don’t go into too much detail or sound technical.
-Add a touch of feeling so it captures the overall vibe in a relatable way.
-Stick to what’s visible, and write it like you’re casually describing it to a friend.
+  return `Generate a short engaging 1–3 sentence caption for the image, focusing on what you see, the mood (ensure it clearly reflects a recognizable sentiment like 😊 Happy, 😢 Sad, 😡 Angry, 🤩 Excited, 😌 Calm, 🕰️ Nostalgic, ❤️ Romantic, 😨 Fearful, 😲 Surprised, 🌧️ Melancholic, etc.), the feel and a few key details.
+Keep it casual and natural—don’t go into too much detail or sound technical.Add a touch of feeling so it captures the overall vibe in a relatable way.Stick to what’s visible, and write it like you’re casually describing it to a friend.
 ##OUTPUT (STRICT JSON ONLY, NO EXTRA TEXT OR EXPLANATION {"key": "value"} FORMAT):
 {
 "caption":"<caption describing the image in 1-3 sentences>",

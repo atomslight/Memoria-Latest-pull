@@ -11,7 +11,7 @@ import multer from 'multer';
 import { storageService } from '../../services/storage';
 import { authMiddleware } from '../../middleware/auth';
 import { aiCaptionQueue } from '../../queues/aiCaption';
-
+import { metadataQueue } from '../../queues/metadata';
 const router: RouterType = Router();
 const prisma = new PrismaClient();
 
@@ -123,7 +123,7 @@ router.get('/', async (req: Request, res: Response) => {
           thumbnailLarge: imageUrl,
           mood: photo.mood,
           cluster: photo.cluster,
-          locationName: photo.locationName,
+          locationName: photo.aiResult?.locationName || null,
         };
       })
     );
@@ -255,7 +255,7 @@ router.get('/:id', async (req: Request, res: Response): Promise<void> => {
       thumbnailUrl,
       mood: photo.mood,
       cluster: photo.cluster,
-      locationName: photo.aiResult?locationName,
+      locationName: photo.aiResult?.locationName || null,
     });
   } catch (error) {
     console.error('Error fetching memory:', error);
@@ -276,6 +276,7 @@ router.post('/', upload.single('file'), async (req: Request, res: Response) => {
     if (!req.file) {
       return res.status(400).json({ error: 'No file uploaded' });
     }
+    console.log('📦 Received file upload:');
 	
     // Get userId from authenticated user
     const userId = req.user!.id; // Authenticated via auth middleware
@@ -314,11 +315,12 @@ router.post('/', upload.single('file'), async (req: Request, res: Response) => {
       mood: req.body.mood,
       cluster: req.body.cluster,
       locationName: req.body.locationName,
+	  locationCoordinates: req.body.locationCoordinates,
       caption: req.body.caption,
     });
-	console.log('📦 req.body:', req.body);
-	console.log('📍 locationName raw:', req.body.locationName);
-	console.log('✅ meta parse result:', meta);
+	  console.log('📦 req.body:', req.body);
+	  console.log('📍 locationName raw:', req.body.locationName);
+	  console.log('✅ meta parse result:', meta);
 
     // Apply mood/cluster/locationName if provided
     if (meta.success && (meta.data.mood || meta.data.cluster || meta.data.locationName)) {
@@ -327,7 +329,6 @@ router.post('/', upload.single('file'), async (req: Request, res: Response) => {
         data: {
           mood: meta.data.mood,
           cluster: meta.data.cluster,
-          locationName: meta.data.locationName,
         },
       });
     }
@@ -336,16 +337,19 @@ router.post('/', upload.single('file'), async (req: Request, res: Response) => {
     const captionProvided = meta.success && meta.data.caption;
 	// If location provided, save directly and skip metaData queue
 	const locationNameGiven = meta.success && meta.data.locationName;
-	
+	// Extract lat/lng if validation succeeded and they exist
+    const lat = meta.success && meta.data.locationCoordinates ? meta.data.locationCoordinates.latitude : null;
+    const lng = meta.success && meta.data.locationCoordinates ? meta.data.locationCoordinates.longitude : null;
     // Create AIResult record
     await prisma.aIResult.create({
-      data: {
-        photoId: photo.id,
-        caption: captionProvided ? meta.data!.caption : null,
+	  data: {
+		photoId: photo.id,
+		caption: captionProvided ? meta.data!.caption : null,
 		locationName: locationNameGiven ? meta.data!.locationName : null,
-        processingStatus: captionProvided ? 'completed' : 'pending',
-      },
-    });
+		...(lat != null && lng != null && { latitude: lat, longitude: lng }),
+		processingStatus: captionProvided ? 'completed' : 'pending',
+	  },
+	});
 
     // Enqueue caption generation job (non-blocking) only if no caption provided
     if (!captionProvided) {
@@ -362,9 +366,11 @@ router.post('/', upload.single('file'), async (req: Request, res: Response) => {
       }
     }
 
-	if (!locationNameGiven) {
+	const needsGeocoding = !locationNameGiven && lat !== null && lng !== null;
+
+    if (needsGeocoding) {
       try {
-        await metadataWorker.add('metadata', {
+        await metadataQueue.add('metadata', { // <--- CHANGED THIS
           photoId: photo.id,
           userId,
           storagePath: fileName,
@@ -407,25 +413,34 @@ router.patch('/:id', async (req: Request, res: Response): Promise<void> => {
       res.status(404).json({ error: 'Memory not found' });
       return;
     }
-
-    const { mood, cluster, locationName, caption } = req.body;
-
-    // Update photo metadata fields
-    const photoUpdate: { mood?: string; cluster?: string; locationName?: string } = {};
+	const { mood, cluster, locationName, caption } = req.body;
+    const photoUpdate: { mood?: string; cluster?: string } = {}; // Removed locationName
     if (mood !== undefined) photoUpdate.mood = mood;
     if (cluster !== undefined) photoUpdate.cluster = cluster;
-    if (locationName !== undefined) photoUpdate.locationName = locationName;
 
     if (Object.keys(photoUpdate).length > 0) {
       await prisma.photo.update({ where: { id }, data: photoUpdate });
     }
 
-    // Update caption if provided
-    if (caption !== undefined) {
+    // Update locationName and caption on AIResult if provided
+    if (caption !== undefined || locationName !== undefined) {
+      const aiResultUpdate: any = {};
+      if (caption !== undefined) {
+        aiResultUpdate.caption = caption;
+        aiResultUpdate.processingStatus = 'completed';
+      }
+      if (locationName !== undefined) {
+        aiResultUpdate.locationName = locationName;
+      }
+
       await prisma.aIResult.upsert({
         where: { photoId: id },
-        update: { caption, processingStatus: 'completed' },
-        create: { photoId: id, caption, processingStatus: 'completed' },
+        update: aiResultUpdate,
+        create: { 
+          photoId: id, 
+          ...aiResultUpdate,
+          processingStatus: caption !== undefined ? 'completed' : 'pending' 
+        },
       });
     }
 

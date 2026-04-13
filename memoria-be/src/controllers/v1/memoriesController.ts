@@ -3,7 +3,8 @@ import { prisma } from '../../config/database';
 import { storageService } from '../../services/storage';
 import { aiCaptionQueue } from '../../queues/aiCaption';
 import { UploadMemoryMetaSchema } from '../../validators';
-
+import { metadataQueue } from '../../queues/metadata';
+import { faceDetectionQueue } from '../../queues/faceDetection';
 // GET /api/v1/memories/activity
 export const getActivity = async (req: Request, res: Response) => {
   try {
@@ -79,7 +80,7 @@ export const getMemories = async (req: Request, res: Response) => {
           thumbnailLarge: imageUrl,
           mood: photo.mood,
           cluster: photo.cluster,
-          locationName: photo.locationName,
+          locationName: photo.aiResult?.locationName || null,
         };
       })
     );
@@ -190,7 +191,7 @@ export const getMemory = async (req: Request, res: Response): Promise<void> => {
       thumbnailUrl,
       mood: photo.mood,
       cluster: photo.cluster,
-      locationName: photo.locationName,
+      locationName: photo.aiResult?.locationName || null,
     });
   } catch (error) {
     console.error('Error fetching memory:', error);
@@ -207,6 +208,8 @@ export const createMemory = async (req: Request, res: Response) => {
     if (!req.file) {
       return res.status(400).json({ error: 'No file uploaded' });
     }
+    
+
 
     const userId = req.user!.id;
     const timestamp = Date.now();
@@ -233,34 +236,52 @@ export const createMemory = async (req: Request, res: Response) => {
         capturedAt: new Date(),
       },
     });
-
+    //Face Detection Pipeline Trigger
+    await faceDetectionQueue.add('detect-faces', {
+      photoId: photo.id,
+      userId,
+      storagePath: fileName, // Use compressed for detection
+      mimeType: 'image/jpeg',
+    });
+    
+    console.log('Upload meta validation result Before latitude here', req.body.latitude);
+    console.log('Upload meta validation result Before longitude', req.body.longitude);
     const meta = UploadMemoryMetaSchema.safeParse({
       mood: req.body.mood,
       cluster: req.body.cluster,
       locationName: req.body.locationName,
+      latitude: req.body.latitude,
+      longitude: req.body.longitude,
       caption: req.body.caption,
     });
+    console.log('Upload meta validation result After:', meta);
 
-    if (meta.success && (meta.data.mood || meta.data.cluster || meta.data.locationName)) {
-      await prisma.photo.update({
-        where: { id: photo.id },
-        data: {
-          mood: meta.data.mood,
-          cluster: meta.data.cluster,
-          locationName: meta.data.locationName,
-        },
-      });
-    }
+    if (meta.success && (meta.data.mood || meta.data.cluster)) {
+       await prisma.photo.update({
+         where: { id: photo.id },
+         data: {
+           mood: meta.data.mood,
+           cluster: meta.data.cluster,
+         },
+       });
+     }
+ 
+     const captionProvided = meta.success && meta.data.caption;
+     const locationNameGiven = meta.success && meta.data.locationName;
 
-    const captionProvided = meta.success && meta.data.caption;
-
+     const lat = meta.success ? meta.data.latitude : null;
+     const lng = meta.success ? meta.data.longitude : null;
+     console.log('Upload lat fetched  result After:', lat);
+     console.log('Upload lng fetched  result After:', lng);
     await prisma.aIResult.create({
-      data: {
-        photoId: photo.id,
-        caption: captionProvided ? meta.data!.caption : null,
-        processingStatus: captionProvided ? 'completed' : 'pending',
-      },
-    });
+       data: {
+         photoId: photo.id,
+         caption: captionProvided ? meta.data!.caption : null,
+         locationName: locationNameGiven ? meta.data!.locationName : null,
+         ...(lat != null && lng != null && { latitude: lat, longitude: lng }),
+         processingStatus: captionProvided ? 'completed' : 'pending',
+       },
+     });
 
     if (!captionProvided) {
       try {
@@ -272,6 +293,21 @@ export const createMemory = async (req: Request, res: Response) => {
         });
       } catch (queueError) {
         console.error('Failed to enqueue caption job:', queueError);
+      }
+    }
+
+    const needsGeocoding = !locationNameGiven && lat !== null && lng !== null;
+
+    if (needsGeocoding) {
+      try {
+        await metadataQueue.add('metadata', {
+          photoId: photo.id,
+          userId,
+          storagePath: fileName,
+          mimeType: req.file.mimetype,
+        });
+      } catch (queueError) {
+        console.error('Failed to enqueue metadata job:', queueError);
       }
     }
 
@@ -310,20 +346,32 @@ export const updateMemory = async (req: Request, res: Response): Promise<void> =
 
     const { mood, cluster, locationName, caption } = req.body;
 
-    const photoUpdate: { mood?: string; cluster?: string; locationName?: string } = {};
+    const photoUpdate: { mood?: string; cluster?: string } = {};
     if (mood !== undefined) photoUpdate.mood = mood;
     if (cluster !== undefined) photoUpdate.cluster = cluster;
-    if (locationName !== undefined) photoUpdate.locationName = locationName;
 
     if (Object.keys(photoUpdate).length > 0) {
       await prisma.photo.update({ where: { id }, data: photoUpdate });
     }
 
-    if (caption !== undefined) {
+    if (caption !== undefined || locationName !== undefined) {
+      const aiResultUpdate: any = {};
+      if (caption !== undefined) {
+        aiResultUpdate.caption = caption;
+        aiResultUpdate.processingStatus = 'completed';
+      }
+      if (locationName !== undefined) {
+        aiResultUpdate.locationName = locationName;
+      }
+
       await prisma.aIResult.upsert({
         where: { photoId: id },
-        update: { caption, processingStatus: 'completed' },
-        create: { photoId: id, caption, processingStatus: 'completed' },
+        update: aiResultUpdate,
+        create: {
+          photoId: id,
+          ...aiResultUpdate,
+          processingStatus: caption !== undefined ? 'completed' : 'pending',
+        },
       });
     }
 

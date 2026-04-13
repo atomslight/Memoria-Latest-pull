@@ -46,10 +46,21 @@ export default function PostCaptureScreen() {
   const [caption, setCaption] = useState('');
   const [selectedMood, setSelectedMood] = useState<Mood | null>(null);
   const [uploading, setUploading] = useState(false);
-  const [location, setLocation] = useState<any>(null);
+  const [location, setLocation] = useState<{ latitude: number; longitude: number } | null>(null);
+  const [locationLoading, setLocationLoading] = useState(true);
 
   useEffect(() => {
-    getCurrentLocation().then(setLocation).catch(() => setLocation(null));
+    setLocationLoading(true);
+    getCurrentLocation()
+      .then((loc) => {
+        setLocation(loc);
+        console.log('📍 Location acquired:', loc);
+      })
+      .catch((err) => {
+        console.log('📍 Location failed:', err);
+        setLocation(null);
+      })
+      .finally(() => setLocationLoading(false));
   }, []);
 
   const aspectRatio = getAspectRatio(activeRatio);
@@ -78,8 +89,11 @@ export default function PostCaptureScreen() {
         formData.append('mood', selectedMood);
       }
 	  if (location) {
-		// Convert { latitude: 12.34, longitude: 56.78 } into a string
-		formData.append('locationCoordinates', JSON.stringify(location));
+		console.log('📤 Sending latitude', location.latitude.toString());
+		console.log('📤 Sending longitude', location.longitude.toString());
+		formData.append('latitude', location.latitude.toString());
+        formData.append('longitude', location.longitude.toString());
+  
 		}
       await api.memories.upload(formData);
       navigation.reset({ index: 0, routes: [{ name: 'Tabs' }] });

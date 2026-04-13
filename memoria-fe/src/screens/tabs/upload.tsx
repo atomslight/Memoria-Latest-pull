@@ -8,7 +8,8 @@ import {
   Dimensions,
 } from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
-import { launchCamera, launchImageLibrary } from 'react-native-image-picker';
+import { launchImageLibrary } from 'react-native-image-picker';
+import { Camera, useCameraDevice } from 'react-native-vision-camera';
 import { useState, useRef, useEffect } from 'react';
 import { useNavigation } from '@react-navigation/native';
 import { COLORS, TYPOGRAPHY, SPACING } from '../../constants';
@@ -35,6 +36,8 @@ export default function CameraScreen() {
   const [timer, setTimer] = useState<TimerMode>('off');
   const [gridVisible, setGridVisible] = useState(false);
   const [facing, setFacing] = useState<Facing>('back');
+  const device = useCameraDevice(facing);
+  const cameraRef = useRef<Camera>(null);
   const [activeFilter, setActiveFilter] = useState<Filter>('Original');
 
   // Countdown state
@@ -49,9 +52,9 @@ export default function CameraScreen() {
   }, []);
 
   const requestPermission = async () => {
-    // react-native-image-picker handles permission prompts; treat as granted and rely on runtime result
-    setPermissionGranted(true);
-  };
+  const status = await Camera.requestCameraPermission();
+  setPermissionGranted(status === 'granted');
+};
 
   // Flash icon helper
   const flashIcon = (): string => {
@@ -99,20 +102,17 @@ export default function CameraScreen() {
   };
 
   const takePicture = async () => {
-    try {
-      const result = await launchCamera({
-        mediaType: 'photo',
-        quality: 0.8,
-        saveToPhotos: false,
-      });
-      const asset = result.assets?.[0];
-      if (asset?.uri) {
-        navigation.navigate('CameraPostCapture', { uri: asset.uri });
-      }
-    } catch {
-      // silently ignore
+  try {
+    const photo = await cameraRef.current?.takePhoto({
+      flash: flash === 'auto' ? 'auto' : flash === 'on' ? 'on' : 'off',
+    });
+    if (photo?.path) {
+      navigation.navigate('CameraPostCapture', { uri: 'file://' + photo.path });
     }
-  };
+  } catch {
+    // silently ignore
+  }
+};
 
   const handleGallery = async () => {
     try {
@@ -153,7 +153,17 @@ export default function CameraScreen() {
     <View style={styles.root}>
       {/* Viewfinder — black placeholder (expo-camera not installed) */}
       <View style={StyleSheet.absoluteFillObject}>
-        <View style={styles.viewfinder} />
+        {device ? (
+          <Camera
+            ref={cameraRef}
+            style={StyleSheet.absoluteFillObject}
+            device={device}
+            isActive={true}
+            photo={true}
+          />
+        ) : (
+          <View style={styles.viewfinder} />
+        )}
       </View>
 
       {/* Grid overlay */}

@@ -1,5 +1,4 @@
 import { z } from 'zod';
-
 // Create Memory Schema
 export const CreateMemorySchema = z.object({
   caption: z.string()
@@ -84,24 +83,8 @@ export const UploadMemoryMetaSchema = z.object({
   cluster: z.string().optional(),
   locationName: z.string().max(200).optional(),
   caption: z.string().max(500).optional(),
-  locationCoordinates: z.string().optional().transform((val) => {
-    if (!val) return undefined;
-
-    try {
-      const parsed = JSON.parse(val);
-
-      if (
-        typeof parsed.latitude === "number" &&
-        typeof parsed.longitude === "number"
-      ) {
-        return parsed;
-      }
-
-      return undefined;
-    } catch {
-      return undefined;
-    }
-  }),
+  latitude: z.coerce.number().optional(),
+  longitude: z.coerce.number().optional(),
 });
 
 // Type exports
