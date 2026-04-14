@@ -17,9 +17,14 @@ import internalServiceRouter from './routes/internal/serviceRoutes';
 import { aiCaptionWorker } from './workers/aiCaptionWorker';
 import { embeddingWorker } from './workers/embeddingWorker';
 import { metadataWorker } from './workers/metadataWorker';
+import { faceDetectionWorker } from './workers/faceDetectionWorker';
 console.log('🤖 Starting AI caption worker...');
 if (aiCaptionWorker) {
   console.log('✅ AI caption worker initialized');
+}
+console.log('📍 Starting face detection worker...');
+if (faceDetectionWorker) {
+  console.log('✅ Face detection worker initialized');
 }
 console.log('📍 Starting metadata worker...');
 if (metadataWorker) {

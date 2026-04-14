@@ -2,6 +2,7 @@ import * as canvas from 'canvas';
 import * as faceapi from '@vladmandic/face-api';
 import path from 'path';
 import '@tensorflow/tfjs-node';
+import { FaceDetectionResult } from '../validators/internal';
 
 const { Canvas, Image, ImageData } = canvas;
 faceapi.env.monkeyPatch({ Canvas, Image, ImageData });
@@ -18,7 +19,7 @@ export async function generateFaceDetectionBoundingBox(
   imageUrl: string,
   mimeType: string,
   padding: number = 40
-): Promise<Array<{ x: number; y: number; width: number; height: number; label: string }>> {
+): Promise<FaceDetectionResult[]> {
   try {
     await loadModels();
 
@@ -51,7 +52,7 @@ export async function generateFaceDetectionBoundingBox(
 
         return { x, y, width, height, label: `face_${i}` };
       })
-      .filter(Boolean) as Array<{ x: number; y: number; width: number; height: number; label: string }>;
+      .filter(Boolean) as FaceDetectionResult[];
 
   } catch (err) {
     console.error('Error in generateFaceDetectionBoundingBox 👉', err);

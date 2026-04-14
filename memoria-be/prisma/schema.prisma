@@ -8,48 +8,48 @@ datasource db {
 }
 
 model User {
-  id            String    @id @default(uuid())
-  email         String    @unique
-  passwordHash  String    @map("password_hash")
-  name          String?
-  bio           String?   @db.VarChar(150)
-  profilePicUrl String?   @map("profile_pic_url")
-  createdAt     DateTime  @default(now()) @map("created_at")
-  updatedAt     DateTime  @updatedAt @map("updated_at")
-
-  photos              Photo[]
-  createdCircles      Circle[]       @relation("CircleCreator")
-  circleMemberships   CircleMember[]
-  circlePhotoUploads  CirclePhoto[]
-  conversations       Conversation[]
+  id                 String         @id @default(uuid())
+  email              String         @unique
+  passwordHash       String         @map("password_hash")
+  name               String?
+  bio                String?        @db.VarChar(150)
+  profilePicUrl      String?        @map("profile_pic_url")
+  createdAt          DateTime       @default(now()) @map("created_at")
+  updatedAt          DateTime       @updatedAt @map("updated_at")
+  circleMemberships  CircleMember[]
+  circlePhotoUploads CirclePhoto[]
+  createdCircles     Circle[]       @relation("CircleCreator")
+  clusters           clusters[]
+  conversations      Conversation[]
+  event_photos       event_photos[]
+  events             events[]
+  photos             Photo[]
 
   @@map("users")
 }
 
 model Photo {
-  id              String    @id @default(uuid())
-  userId          String    @map("user_id")
-  hash            String    @unique
-  storagePath     String    @map("storage_path")
-  fileSize        Int       @map("file_size")
-  mimeType        String    @map("mime_type")
+  id              String                 @id @default(uuid())
+  userId          String                 @map("user_id")
+  hash            String                 @unique
+  storagePath     String                 @map("storage_path")
+  fileSize        Int                    @map("file_size")
+  mimeType        String                 @map("mime_type")
   width           Int?
   height          Int?
-  capturedAt      DateTime? @map("captured_at")
-  deletedAt       DateTime? @map("deleted_at")
+  capturedAt      DateTime?              @map("captured_at")
+  deletedAt       DateTime?              @map("deleted_at")
   mood            String?
   cluster         String?
-  locationName    String?   @map("location_name")
-  createdAt       DateTime  @default(now()) @map("created_at")
-  updatedAt       DateTime  @updatedAt @map("updated_at")
-
-  // Visual embeddings (pgvector) - Phase 2
-  embedding       Unsupported("vector(1408)")?
-  embeddingStatus String?   @default("pending") @map("embedding_status")
-
-  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
-  aiResult     AIResult?
-  circlePhotos CirclePhoto[]
+  locationName    String?                @map("location_name")
+  createdAt       DateTime               @default(now()) @map("created_at")
+  updatedAt       DateTime               @updatedAt @map("updated_at")
+  embedding       Unsupported("vector")?
+  embeddingStatus String?                @default("pending") @map("embedding_status")
+  aiResult        AIResult?
+  circlePhotos    CirclePhoto[]
+  event_photos    event_photos[]
+  user            User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, capturedAt])
   @@index([userId, deletedAt])
@@ -58,25 +58,32 @@ model Photo {
 }
 
 model AIResult {
-  id                String   @id @default(uuid())
-  photoId           String   @unique @map("photo_id")
-  caption           String?
-  mood              String?
-  locationName    String?   @map("location_name")
-  latitude          Float?   @map("latitude")
-  longitude         Float?   @map("longitude")
-  timesVisitedLocation Int?      @map("times_visited_location")
-  isItFrequent      Boolean?  @map("is_it_frequent")
-  usageLimitBlocked Boolean?  @map("usage_limit_blocked")
-
-  captionConfidence Float?   @map("caption_confidence")
-  faces             Json?
-  metadata          Json?
-  processingStatus  String   @default("pending") @map("processing_status")
-  createdAt         DateTime @default(now()) @map("created_at")
-  updatedAt         DateTime @updatedAt @map("updated_at")
-
-  photo Photo @relation(fields: [photoId], references: [id], onDelete: Cascade)
+  id                   String                 @id @default(uuid())
+  photoId              String                 @unique @map("photo_id")
+  caption              String?
+  captionConfidence    Float?                 @map("caption_confidence")
+  faces                Json?
+  metadata             Json?
+  processingStatus     String                 @default("pending") @map("processing_status")
+  createdAt            DateTime               @default(now()) @map("created_at")
+  updatedAt            DateTime               @updatedAt @map("updated_at")
+  locationName         String?                @map("location_name") @db.VarChar(200)
+  latitude             Float?                 @map("latitude")
+  longitude            Float?                 @map("longitude")
+  mood                 String?                @db.VarChar(60)
+  timesVisitedLocation Int?                   @map("times_visited_location")
+  isItFrequent         Boolean?               @map("is_it_frequent")
+  usageLimitBlocked    Boolean?               @map("usage_limit_blocked")
+  faceX                Float?                 @map("face_x")
+  faceY                Float?                 @map("face_y")
+  faceWidth            Float?                 @map("face_width")
+  faceHeight           Float?                 @map("face_height")
+  confidence           Float?
+  faceLabel            String?                @map("face_label") @db.VarChar(50)
+  face_match_status    Boolean?
+  coverFaceId          Int?                   @map("cover_face_id")
+  embedding            Unsupported("vector")? @map("embedding")
+  photo                Photo                  @relation(fields: [photoId], references: [id], onDelete: Cascade)
 
   @@index([processingStatus])
   @@map("ai_results")
@@ -90,10 +97,10 @@ model Circle {
   createdBy   String         @map("created_by")
   createdAt   DateTime       @default(now()) @map("created_at")
   updatedAt   DateTime       @updatedAt @map("updated_at")
-
-  creator  User           @relation("CircleCreator", fields: [createdBy], references: [id], onDelete: Cascade)
-  members  CircleMember[]
-  photos   CirclePhoto[]
+  members     CircleMember[]
+  photos      CirclePhoto[]
+  creator     User           @relation("CircleCreator", fields: [createdBy], references: [id], onDelete: Cascade)
+  events      events[]
 
   @@index([createdBy])
   @@map("circles")
@@ -105,9 +112,8 @@ model CircleMember {
   userId   String   @map("user_id")
   role     String   @default("member")
   joinedAt DateTime @default(now()) @map("joined_at")
-
-  circle Circle @relation(fields: [circleId], references: [id], onDelete: Cascade)
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  circle   Circle   @relation(fields: [circleId], references: [id], onDelete: Cascade)
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([circleId, userId])
   @@index([userId])
@@ -121,10 +127,9 @@ model CirclePhoto {
   photoId    String   @map("photo_id")
   uploadedBy String   @map("uploaded_by")
   uploadedAt DateTime @default(now()) @map("uploaded_at")
-
-  circle   Circle @relation(fields: [circleId], references: [id], onDelete: Cascade)
-  photo    Photo  @relation(fields: [photoId], references: [id], onDelete: Cascade)
-  uploader User   @relation(fields: [uploadedBy], references: [id], onDelete: Cascade)
+  circle     Circle   @relation(fields: [circleId], references: [id], onDelete: Cascade)
+  photo      Photo    @relation(fields: [photoId], references: [id], onDelete: Cascade)
+  uploader   User     @relation(fields: [uploadedBy], references: [id], onDelete: Cascade)
 
   @@unique([circleId, photoId])
   @@index([circleId, uploadedAt])
@@ -138,23 +143,66 @@ model Conversation {
   createdAt DateTime  @default(now()) @map("created_at")
   updatedAt DateTime  @updatedAt @map("updated_at")
   deletedAt DateTime? @map("deleted_at")
-
-  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  messages Message[]
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages  Message[]
 
   @@index([userId, updatedAt])
   @@map("conversations")
 }
 
 model Message {
-  id             String   @id @default(uuid())
-  conversationId String   @map("conversation_id")
+  id             String       @id @default(uuid())
+  conversationId String       @map("conversation_id")
   role           String
   parts          Json
-  createdAt      DateTime @default(now()) @map("created_at")
-
-  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  createdAt      DateTime     @default(now()) @map("created_at")
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
 
   @@index([conversationId, createdAt])
   @@map("messages")
+}
+
+model clusters {
+  id           String   @id
+  name_cluster String
+  description  String?
+  created_by   String
+  created_at   DateTime @default(now())
+  updated_at   DateTime
+  users        User     @relation(fields: [created_by], references: [id], onDelete: Cascade)
+
+  @@index([created_by])
+}
+
+model event_photos {
+  id          String   @id
+  event_id    String
+  photo_id    String
+  uploaded_by String
+  uploaded_at DateTime @default(now())
+  events      events   @relation(fields: [event_id], references: [id], onDelete: Cascade)
+  photos      Photo    @relation(fields: [photo_id], references: [id], onDelete: Cascade)
+  users       User     @relation(fields: [uploaded_by], references: [id], onDelete: Cascade)
+
+  @@unique([event_id, photo_id])
+  @@index([event_id, uploaded_at])
+}
+
+model events {
+  id           String         @id
+  event_name   String
+  description  String?
+  event_date   DateTime
+  circle_id    String
+  created_by   String
+  logo_image   String?
+  created_at   DateTime       @default(now())
+  updated_at   DateTime
+  event_photos event_photos[]
+  circles      Circle         @relation(fields: [circle_id], references: [id], onDelete: Cascade)
+  users        User           @relation(fields: [created_by], references: [id], onDelete: Cascade)
+
+  @@index([circle_id, event_date])
+  @@index([circle_id])
+  @@index([created_by])
 }

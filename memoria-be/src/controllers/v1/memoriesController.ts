@@ -216,7 +216,6 @@ export const createMemory = async (req: Request, res: Response) => {
     const randomStr = Math.random().toString(36).substring(7);
     const fileExt = req.file.originalname.split('.').pop();
     const fileName = `${userId}/${timestamp}-${randomStr}.${fileExt}`;
-
     await storageService.uploadFile('memories', fileName, req.file.buffer, req.file.mimetype, {
       upsert: false,
     });
@@ -235,13 +234,13 @@ export const createMemory = async (req: Request, res: Response) => {
         height: 0,
         capturedAt: new Date(),
       },
-    });
+    }); 
     //Face Detection Pipeline Trigger
     await faceDetectionQueue.add('detect-faces', {
       photoId: photo.id,
       userId,
-      storagePath: fileName, // Use compressed for detection
-      mimeType: 'image/jpeg',
+      storagePath: fileName,
+      mimeType: req.file.mimetype,
     });
     
     console.log('Upload meta validation result Before latitude here', req.body.latitude);

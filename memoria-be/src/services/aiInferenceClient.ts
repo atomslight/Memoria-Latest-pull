@@ -1,5 +1,5 @@
 import { env } from '../config/env';
-
+import { FaceDetectionResponse } from './faceDetectionService';
 interface EmbeddingResponse {
   embedding: number[];
 }
@@ -9,13 +9,12 @@ interface CaptionResponse {
   mood?:string;
   confidence: number;
 }
-interface FaceDetectionResponse {
-  x?: number;
-  y?: number;
-  width?: number;
-  height?: number;
-  label?: string;
-}
+interface FaceDetectionResult {
+    boundingBoxes: FaceDetectionResponse[];
+    embeddings: number[][];
+    photoId: string;
+    count: number;
+  }
 
 function baseUrl(): string {
   return env.AI_SERVICE_URL.replace(/\/$/, '');
@@ -73,7 +72,7 @@ export const aiInferenceClient = {
   async postFaceDetection(
     imageUrl: string,
     mimeType: string
-  ): Promise<FaceDetectionResponse[]> {
-    return postJson<FaceDetectionResponse[]>('/internal/v1/face-detection', { imageUrl, mimeType });
-  },
+  ): Promise<FaceDetectionResult> {
+    return postJson<FaceDetectionResult>('/internal/v1/face-detection', { imageUrl, mimeType });
+  }
 };
