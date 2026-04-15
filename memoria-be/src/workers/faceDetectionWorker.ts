@@ -55,7 +55,7 @@ export const faceDetectionWorker = new Worker<AIFaceDetectionJobData>(
         ${box.width ?? 'NULL'},
         ${box.height ?? 'NULL'},
         ${box.label ? `'${box.label}'` : 'NULL'},
-        ${box.confidence ?? 'NULL'},
+        ${(box as any).confidence ?? 'NULL'},
         ${embedding ? `'[${embedding.join(',')}]'::vector` : 'NULL'}
       )
         
