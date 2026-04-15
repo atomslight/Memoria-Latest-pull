@@ -1,5 +1,4 @@
 import { prisma } from '../config/database';
-import { aiInferenceClient } from './aiInferenceClient';
 
 // Parse Postgres vector string to number array
 function parseVectorString(raw: string): number[] {
@@ -30,22 +29,16 @@ interface MatchResult {
 const EUCLIDEAN_THRESHOLD = 0.6;
 
 function euclideanDistance(a: number[], b: number[]): number {
-  return Math.sqrt(a.reduce((sum, val, i) => sum + Math.pow(val - b[i], 2), 0));
+  return Math.sqrt(a.reduce((sum, val, i) => sum + Math.pow(val - (b[i] || 0), 2), 0));
 }
 
 export class FaceMatchingService {
-  /**
-   * Match new face embeddings against existing face groups.
-   * - If match found → assign to existing group
-   * - If no match → create new group
-   */
   async matchAndGroupFaces(
     userId: string,
     photoId: string,
     cropEmbeddings: number[][],
     faceIds: string[]
   ): Promise<{ results: MatchResult[]; groupsCreated: number }> {
-    // 1. Fetch all existing FaceGroups for this user
     const groupRows = await prisma.$queryRaw<
       { id: string; best_embedding: string | null; name: string }[]
     >`
@@ -62,18 +55,35 @@ export class FaceMatchingService {
         name: row.name,
       }));
 
+    let unknownGroupRow = await prisma.$queryRaw<
+      { id: string }[]
+    >`SELECT id FROM face_groups WHERE user_id = ${userId} AND name = 'Unknown' LIMIT 1`;
+    let unknownGroupId: string;
+
+    if (unknownGroupRow.length > 0) {
+      unknownGroupId = unknownGroupRow[0]!.id;
+    } else {
+      const newUnknown = await prisma.face_groups.create({
+        data: {
+          user_id: userId,
+          name: 'Unknown',
+        }
+      });
+      unknownGroupId = newUnknown.id;
+    }
+
     const results: MatchResult[] = [];
     const groupsToCreate: { embedding: number[]; faceId: string }[] = [];
     const groupsToUpdate: { groupId: string; faceId: string }[] = [];
 
-    // 2. Match each embedding against existing groups
     for (let i = 0; i < cropEmbeddings.length; i++) {
-      const embedding = cropEmbeddings[i];
-      const faceId = faceIds[i];
+      const embedding = cropEmbeddings[i]!;
+      const faceId = faceIds[i]!;
 
       let bestMatch: { groupId: string; score: number } | null = null;
 
       for (const group of existingGroups) {
+        if (!group.bestEmbedding) continue;
         const distance = euclideanDistance(embedding, group.bestEmbedding);
         if (distance < EUCLIDEAN_THRESHOLD) {
           if (!bestMatch || distance < bestMatch.score) {
@@ -83,47 +93,42 @@ export class FaceMatchingService {
       }
 
       if (bestMatch) {
-        // Assign to existing group
         results.push({ cropIndex: i, matched: true, groupId: bestMatch.groupId, score: bestMatch.score });
         groupsToUpdate.push({ groupId: bestMatch.groupId, faceId });
       } else {
-        // Will create new group
         results.push({ cropIndex: i, matched: false });
         groupsToCreate.push({ embedding, faceId });
       }
     }
 
-    // 3. Create new groups for unmatched faces
     let groupsCreated = 0;
     for (const item of groupsToCreate) {
-      const group = await prisma.faceGroup.create({
-        data: {
-          userId,
-          name: `Person ${Date.now()}`,
-          bestEmbedding: toVectorString(item.embedding),
-          coverFaceId: item.faceId,
-        },
-      });
-      groupsCreated++;
+      groupsToUpdate.push({ groupId: unknownGroupId, faceId: item.faceId });
 
-      // Update face with groupId
-      await prisma.face.update({
-        where: { id: item.faceId },
-        data: { groupId: group.id },
-      });
+      await prisma.$executeRawUnsafe(`
+        UPDATE face_groups SET best_embedding = '[${item.embedding.join(',')}]'::vector, cover_face_id = '${item.faceId}'
+        WHERE id = '${unknownGroupId}' AND best_embedding IS NULL
+      `);
     }
 
-    // 4. Update matched faces with their groupId
     for (const item of groupsToUpdate) {
       await prisma.face.update({
         where: { id: item.faceId },
-        data: { groupId: item.groupId },
+        data: { group_id: item.groupId },
       });
     }
 
     console.log(`[FaceMatching] photoId=${photoId}, matched=${results.filter(r => r.matched).length}, newGroups=${groupsCreated}`);
 
     return { results, groupsCreated };
+  }
+
+  async matchNewFaces(userId: string, embeddings: number[][], photoId: string) {
+    const faces = await prisma.face.findMany({ where: { photoId: photoId }});
+    const faceIds = faces.map(f => f.id);
+    if (embeddings.length === faceIds.length) {
+      await this.matchAndGroupFaces(userId, photoId, embeddings, faceIds);
+    }
   }
 }
 

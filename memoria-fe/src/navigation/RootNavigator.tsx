@@ -24,6 +24,7 @@ import ProfileActiveDevicesScreen from '../screens/profile/active-devices';
 import ProfileFaceTaggingScreen from '../screens/profile/face-tagging';
 import ProfileLanguageScreen from '../screens/profile/language';
 import ProfileSmartPlacesScreen from '../screens/profile/smart-places';
+import FaceGroupScreen from '../screens/tabs/faceGroupScreen';
 
 export type RootStackParamList = {
   Landing: undefined;
@@ -51,6 +52,7 @@ export type RootStackParamList = {
   ProfileFaceTagging: undefined;
   ProfileLanguage: undefined;
   ProfileSmartPlaces: undefined;
+  FaceGroupScreen: { id: string };
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -80,6 +82,7 @@ export function RootNavigator() {
         <Stack.Screen name="ProfileFaceTagging" component={ProfileFaceTaggingScreen} />
         <Stack.Screen name="ProfileLanguage" component={ProfileLanguageScreen} />
         <Stack.Screen name="ProfileSmartPlaces" component={ProfileSmartPlacesScreen} />
+        <Stack.Screen name="FaceGroupScreen" component={FaceGroupScreen} />
       </Stack.Navigator>
     );
   }
@@ -111,6 +114,7 @@ export function RootNavigator() {
           <Stack.Screen name="ProfileFaceTagging" component={ProfileFaceTaggingScreen} />
           <Stack.Screen name="ProfileLanguage" component={ProfileLanguageScreen} />
           <Stack.Screen name="ProfileSmartPlaces" component={ProfileSmartPlacesScreen} />
+          <Stack.Screen name="FaceGroupScreen" component={FaceGroupScreen} />
         </>
       )}
     </Stack.Navigator>

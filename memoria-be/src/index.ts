@@ -18,7 +18,7 @@ import { aiCaptionWorker } from './workers/aiCaptionWorker';
 import { embeddingWorker } from './workers/embeddingWorker';
 import { metadataWorker } from './workers/metadataWorker';
 import { faceDetectionWorker } from './workers/faceDetectionWorker';
-//import faceGroupRouter from './routes/v1/faceGroupRoutes';
+import faceGroupsRouter from './routes/v1/faceGroupsRoutes';
  // 
  
 console.log('🤖 Starting AI caption worker...');
@@ -68,7 +68,7 @@ app.use('/api/v1/search', searchRouter);
 app.use('/api/v1/circles', circlesRouter);
 app.use('/api/v1/users', usersRouter);
 app.use('/api/v1/ai', aiRouter);
-//app.use('/api/v1/face-groups', faceGroupRouter);
+app.use('/api/v1/face-groups', faceGroupsRouter);
 
 /** Service-to-service (Memoria AI ↔ API): tool execution + chat persistence. Restrict in production. */
 app.use('/internal/v1', internalServiceRouter);
