@@ -17,10 +17,7 @@ export const faceDetectionQueue = new Queue('detect-faces', {
       age: 120, // Keep completed jobs for 5 minutes
       count: 100
     },
-    //Remove it
-    removeOnFail: {
-      age: 86400 // Keep failed jobs for 24 hours
-    }
+    
   }
 });
 

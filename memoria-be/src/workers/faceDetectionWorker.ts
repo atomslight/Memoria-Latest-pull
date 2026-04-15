@@ -14,9 +14,9 @@ export const faceDetectionWorker = new Worker<AIFaceDetectionJobData>(
     console.log(`Processing AI Face Detection for ${photoId} (user: ${userId})`);
 
     try {
-      const detections = await faceDetectionService.postFaceDetection(storagePath, mimeType);
+      const detections = await faceDetectionService.postFaceDetection(storagePath, mimeType); //bounding box
       const boundingBoxes = detections?.boundingBoxes ?? [];
-      const embeddings = detections?.embeddings ?? [];
+      const embeddings = detections?.embeddings ?? []; 
       console.log(`Face detection completed for ${photoId}:`, boundingBoxes);
 
       if (boundingBoxes.length > 0) {
@@ -27,8 +27,9 @@ export const faceDetectionWorker = new Worker<AIFaceDetectionJobData>(
           create: { photoId, processingStatus: 'completed' },
         });
         // 2. Clear previous detections for this photo (safe reprocessing)
-        await prisma.face.deleteMany({
-          where: { photoId: photoId },
+        //Remove await prisma.face.deleteMany({
+        prisma.face.deleteMany({
+          where: { photoId: photoId }, 
         });
         // 3. Insert all faces with incremental cover_face_id
         await prisma.$transaction(
