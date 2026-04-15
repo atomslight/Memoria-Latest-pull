@@ -3,45 +3,67 @@ import { faceDetectionService as FaceDetectionServiceClass } from '../services/f
 import { Worker } from 'bullmq';
 import { getRedisConnection } from '../config/redis';
 import { prisma } from '../config/database';
+import { faceMatchingService } from '../services/faceMatchingService';
 const faceDetectionService = new FaceDetectionServiceClass();
 
 export const faceDetectionWorker = new Worker<AIFaceDetectionJobData>(
   'detect-faces',
   async (job) => {
     const { photoId, userId, storagePath, mimeType } = job.data;
-    
-    console.log(`Processing AI Face Detection for ${photoId} (user: ${userId})`);
-    
-    try {
-      // Get face detections from AI microservice
-      const detections = await faceDetectionService.postFaceDetection(storagePath, mimeType);
-      const firstDetection = detections?.boundingBoxes?.[0]; // Take the first detected face for simplicity
-      
-      const faceData = {
-        x: firstDetection?.x ?? null,
-        y: firstDetection?.y ?? null,
-        width: firstDetection?.width ?? null,
-        height: firstDetection?.height ?? null,
-        label: firstDetection?.label ?? null,
-      };
 
-      console.log(`Face detection completed for ${photoId}:`, faceData);
-      const existing = await prisma.aIResult.findUnique({ where: { photoId } });
-      console.log('AIResult row exists?', existing);
-      // Store results in database
-      //cover_face_id should act as a session-wise incremental ID per photoId (Full image) 
-      if (firstDetection) {
-        await prisma.aIResult.update({
+    console.log(`Processing AI Face Detection for ${photoId} (user: ${userId})`);
+
+    try {
+      const detections = await faceDetectionService.postFaceDetection(storagePath, mimeType);
+      const boundingBoxes = detections?.boundingBoxes ?? [];
+      const embeddings = detections?.embeddings ?? [];
+      console.log(`Face detection completed for ${photoId}:`, boundingBoxes);
+
+      if (boundingBoxes.length > 0) {
+        // 1. Update AIResult status only
+        await prisma.aIResult.upsert({
           where: { photoId },
-          data: {
-            faceX: firstDetection.x ?? null,
-            faceY: firstDetection.y ?? null,
-            faceWidth: firstDetection.width ?? null,
-            faceHeight: firstDetection.height ?? null,
-            faceLabel: firstDetection.label ?? null,
-            processingStatus: 'completed',
-          },
+          update: { processingStatus: 'completed' },
+          create: { photoId, processingStatus: 'completed' },
         });
+        // 2. Clear previous detections for this photo (safe reprocessing)
+        await prisma.face.deleteMany({
+          where: { photoId: photoId },
+        });
+        // 3. Insert all faces with incremental cover_face_id
+        await prisma.$transaction(
+  boundingBoxes.map((box, index) => {
+    const embedding = embeddings[index];
+
+    return prisma.$executeRawUnsafe(`
+      INSERT INTO faces (
+        photo_id,
+        cover_face_id,
+        face_x,
+        face_y,
+        face_width,
+        face_height,
+        face_label,
+        confidence,
+        embedding
+      )
+      VALUES (
+        '${photoId}',
+        ${index},
+        ${box.x ?? 'NULL'},
+        ${box.y ?? 'NULL'},
+        ${box.width ?? 'NULL'},
+        ${box.height ?? 'NULL'},
+        ${box.label ? `'${box.label}'` : 'NULL'},
+        ${box.confidence ?? 'NULL'},
+        ${embedding ? `'[${embedding.join(',')}]'::vector` : 'NULL'}
+      )
+        
+    `);
+  })
+);
+
+
       } else {
         await prisma.aIResult.upsert({
           where: { photoId },
@@ -49,47 +71,47 @@ export const faceDetectionWorker = new Worker<AIFaceDetectionJobData>(
           create: { photoId, processingStatus: 'no_face_found' },
         });
       }
-
+      if (embeddings.length > 0) {
+    await faceMatchingService.matchNewFaces(userId, embeddings, photoId);
+    }
       return {
         success: true,
-        ...faceData,
+        facesDetected: boundingBoxes.length,
       };
-    }  catch (error) {
+
+    } catch (error) {
       console.error(`Error processing face detection for photo ${photoId}:`, error);
-      throw error; // BullMQ marks job as failed, retries trigger, 'failed' event fires
+      throw error;
     }
   },
   {
     connection: getRedisConnection(),
     concurrency: 3,
     limiter: {
-      max: 4, // Max 10 jobs
-      duration: 1000 // Per second
-    }
+      max: 4,
+      duration: 1000,
+    },
   }
 );
 
 faceDetectionWorker.on('ready', () => {
-   console.log('✅ Face detection worker is ready and listening for jobs');
- });
+  console.log('✅ Face detection worker is ready and listening for jobs');
+});
 
- faceDetectionWorker.on('active', (job) => {
-   console.log(`🔄 Processing face detection job ${job.id} for photo ${job.data.photoId}`);
- });
+faceDetectionWorker.on('active', (job) => {
+  console.log(`🔄 Processing face detection job ${job.id} for photo ${job.data.photoId}`);
+});
 
- faceDetectionWorker.on('completed', (job) => {
-   console.log(`✅ Face detection job ${job.id} completed`);
-   if (job.returnvalue?.embeddings) {
-     console.log('📊 Embeddings:', job.returnvalue.embeddings);
-   }
- });
+faceDetectionWorker.on('completed', (job) => {
+  console.log(`✅ Face detection job ${job.id} completed — ${job.returnvalue?.facesDetected} face(s) detected`);
+});
 
- faceDetectionWorker.on('failed', (job, err) => {
-   console.error(`❌ Face detection job ${job?.id} failed:`, err.message);
- });
+faceDetectionWorker.on('failed', (job, err) => {
+  console.error(`❌ Face detection job ${job?.id} failed:`, err.message);
+});
 
- faceDetectionWorker.on('error', (err) => {
-   console.error('❌ Face detection worker error:', err);
- });
+faceDetectionWorker.on('error', (err) => {
+  console.error('❌ Face detection worker error:', err);
+});
 
- console.log('🎯 Face detection worker created, waiting for jobs...');
+console.log('🎯 Face detection worker created, waiting for jobs...');

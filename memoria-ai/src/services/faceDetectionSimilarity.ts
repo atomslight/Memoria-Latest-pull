@@ -2,10 +2,17 @@ import * as canvas from 'canvas';
 import * as faceapi from '@vladmandic/face-api';
 import path from 'path';
 import '@tensorflow/tfjs-node';
-import { FaceDetectionResult, FaceEmbeddingResult } from '../validators/internal';
+import {
+  FaceDetectionResult,
+  FaceEmbeddingResult,
+  DbEmbeddingRecord,
+  CropMatchResult,
+  SimilarityCheckResult,
+} from '../validators/internal';
 
 const { Canvas, Image, ImageData } = canvas;
 faceapi.env.monkeyPatch({ Canvas, Image, ImageData });
+
 
 let modelsLoaded = false;
 
@@ -20,13 +27,10 @@ async function loadModels() {
   modelsLoaded = true;
 }
 
-/**
- * Extract face embeddings from bounding boxes in an image
- * @param imageUrl - URL or path to the image
- * @param boundingBoxes - Array of face bounding boxes
- * @param photoId - Unique identifier for the photo
- * @returns Face embeddings data with descriptors
- */
+// ---------------------------------------------------------------------------
+// Extract face embeddings from bounding boxes in an image
+// ---------------------------------------------------------------------------
+
 export async function extractFaceEmbeddings(
   imageUrl: string,
   boundingBoxes: FaceDetectionResult[],
@@ -40,16 +44,13 @@ export async function extractFaceEmbeddings(
 
     const embeddings: number[][] = [];
 
-    // Process each bounding box to extract embeddings
     for (const boundingBox of boundingBoxes) {
-      // ✅ CORRECTED: Check if object exists, not each property (guaranteed by type system)
       if (!boundingBox) {
         console.warn(`Skipping null bounding box`);
         continue;
       }
 
       try {
-        // Create a cropped canvas from the bounding box
         const cropCanvas = new Canvas(boundingBox.width, boundingBox.height);
         const ctx = cropCanvas.getContext('2d');
 
@@ -71,11 +72,9 @@ export async function extractFaceEmbeddings(
           boundingBox.height
         );
 
-        const buffer = cropCanvas.toBuffer('image/jpeg');
+        const buffer     = cropCanvas.toBuffer('image/jpeg');
         const croppedImg = await canvas.loadImage(buffer);
 
-        // Detect face and get descriptor from cropped image
-        // Note: withFaceLandmarks() is required to compute descriptors even if we don't use landmarks
         let croppedDetection;
         try {
           croppedDetection = await faceapi
@@ -116,12 +115,11 @@ export async function extractFaceEmbeddings(
       `total_faces: ${boundingBoxes.length}, ` +
       `embeddings_extracted: ${embeddings.length}`
     );
-
-    // Compare the first two embeddings if available
+    /* Testing Demo code can be removed later
     if (embeddings.length >= 2) {
       compareEmbeddings(embeddings[0], embeddings[1]);
       compareEmbeddings(embeddings[0], embeddings[1], 'cosine');
-    }
+    } */
 
     return {
       photoId,
@@ -135,22 +133,24 @@ export async function extractFaceEmbeddings(
 }
 
 // ---------------------------------------------------------------------------
-// Face comparison — added below; no existing code was changed
+// Thresholds for L2-normalized face-api.js vectors
 // ---------------------------------------------------------------------------
 
-// Thresholds for L2-normalized face-api.js vectors
-const EUCLIDEAN_THRESHOLD = 0.6;  // < 0.6 → same person
-const COSINE_THRESHOLD    = 0.40; // > 0.40 similarity → same person (1 - 0.6 / 2 ≈ 0.82 for strict; 0.40 is a safe default)
+const EUCLIDEAN_THRESHOLD = 0.6;   // < 0.6  → same person
+const COSINE_THRESHOLD    = 0.40;  // > 0.40 → same person
 
 export type ComparisonMetric = 'euclidean' | 'cosine';
 
 export interface FaceComparisonResult {
   status: 'matched' | 'unmatched';
-  score: number;    // euclidean: lower = more similar | cosine: higher = more similar
+  score:  number;
   metric: ComparisonMetric;
 }
 
-/** Asserts both vectors exist and share the same dimension. */
+// ---------------------------------------------------------------------------
+// Internal math helpers
+// ---------------------------------------------------------------------------
+
 function assertCompatible(a: number[], b: number[]): void {
   if (!a?.length || !b?.length) throw new Error('Embedding vector must be non-empty.');
   if (a.length !== b.length) {
@@ -158,47 +158,21 @@ function assertCompatible(a: number[], b: number[]): void {
   }
 }
 
-/**
- * Euclidean distance between two L2-normalized vectors.
- * Range: [0, 2]  — 0 = identical, 2 = opposite.
- * Match when score < EUCLIDEAN_THRESHOLD (0.6).
- */
 function euclideanDistance(a: number[], b: number[]): number {
   return Math.sqrt(a.reduce((sum, val, i) => sum + Math.pow(val - b[i], 2), 0));
 }
 
-/**
- * Cosine similarity between two L2-normalized vectors.
- * Range: [-1, 1] — 1 = identical direction, -1 = opposite.
- * For already-normalized vectors this is simply the dot product.
- * Match when score > COSINE_THRESHOLD (0.40).
- */
 function cosineSimilarity(a: number[], b: number[]): number {
-  const dot      = a.reduce((sum, val, i) => sum + val * b[i], 0);
-  const magA     = Math.sqrt(a.reduce((sum, val) => sum + val * val, 0));
-  const magB     = Math.sqrt(b.reduce((sum, val) => sum + val * val, 0));
-  // Guard against zero-magnitude vectors (should never happen with face-api output)
+  const dot  = a.reduce((sum, val, i) => sum + val * b[i], 0);
+  const magA = Math.sqrt(a.reduce((sum, val) => sum + val * val, 0));
+  const magB = Math.sqrt(b.reduce((sum, val) => sum + val * val, 0));
   return magA && magB ? dot / (magA * magB) : 0;
 }
 
-/**
- * Compare two 128-dim face embedding vectors.
- *
- * @param embeddingA - First face embedding (from extractFaceEmbeddings)
- * @param embeddingB - Second face embedding
- * @param metric     - 'euclidean' (default) or 'cosine'
- * @param threshold  - Override the default threshold for the chosen metric
- * @returns FaceComparisonResult { status, score, metric }
- *
- * @example
- * // Euclidean (default)
- * compareEmbeddings(a, b);
- * // → { status: 'matched', score: 0.38, metric: 'euclidean' }
- *
- * // Cosine similarity
- * compareEmbeddings(a, b, 'cosine');
- * // → { status: 'matched', score: 0.91, metric: 'cosine' }
- */
+// ---------------------------------------------------------------------------
+// Compare two embedding vectors directly Demo function can be removed later only for testing
+// ---------------------------------------------------------------------------
+/*
 export function compareEmbeddings(
   embeddingA: number[],
   embeddingB: number[],
@@ -208,17 +182,86 @@ export function compareEmbeddings(
   assertCompatible(embeddingA, embeddingB);
 
   if (metric === 'cosine') {
-    const score     = cosineSimilarity(embeddingA, embeddingB);
-    const cutoff    = threshold ?? COSINE_THRESHOLD;
-    const status    = score > cutoff ? 'matched' : 'unmatched';
+    const score  = cosineSimilarity(embeddingA, embeddingB);
+    const cutoff = threshold ?? COSINE_THRESHOLD;
+    const status = score > cutoff ? 'matched' : 'unmatched';
     console.log(`Face comparison [cosine] — similarity: ${score.toFixed(4)}, threshold: >${cutoff}, status: ${status}`);
     return { status, score, metric };
   }
 
-  // Default: euclidean
-  const score   = euclideanDistance(embeddingA, embeddingB);
-  const cutoff  = threshold ?? EUCLIDEAN_THRESHOLD;
-  const status  = score < cutoff ? 'matched' : 'unmatched';
+  const score  = euclideanDistance(embeddingA, embeddingB);
+  const cutoff = threshold ?? EUCLIDEAN_THRESHOLD;
+  const status = score < cutoff ? 'matched' : 'unmatched';
   console.log(`Face comparison [euclidean] — distance: ${score.toFixed(4)}, threshold: <${cutoff}, status: ${status}`);
   return { status, score, metric };
+}
+
+// ---------------------------------------------------------------------------
+// Check each crop embedding against all DB embeddings
+// Each DB record can only be claimed by one crop (first-come basis)
+// ---------------------------------------------------------------------------
+*/
+export function checkMatchSimilarity(
+  cropEmbeddings: number[][],
+  dbRecords: DbEmbeddingRecord[],
+  metric: ComparisonMetric = 'euclidean',
+  threshold?: number
+): SimilarityCheckResult {
+  const claimedDbIds = new Set<string>();
+  const results: CropMatchResult[] = [];
+
+  for (let cropIdx = 0; cropIdx < cropEmbeddings.length; cropIdx++) {
+    const cropVec = cropEmbeddings[cropIdx];
+    let matched     = false;
+    let matchedDbId: string | undefined;
+    let bestScore:  number | undefined;
+
+    for (const dbRecord of dbRecords) {
+      if (claimedDbIds.has(dbRecord.id)) continue;
+
+      let score: number;
+      let isMatch: boolean;
+
+      if (metric === 'cosine') {
+        score   = cosineSimilarity(cropVec, dbRecord.embedding);
+        const cutoff = threshold ?? COSINE_THRESHOLD;
+        isMatch = score > cutoff;
+      } else {
+        score   = euclideanDistance(cropVec, dbRecord.embedding);
+        const cutoff = threshold ?? EUCLIDEAN_THRESHOLD;
+        isMatch = score < cutoff;
+      }
+
+      console.log(
+        `[checkMatchSimilarity] crop[${cropIdx}] vs DB(${dbRecord.id}) ` +
+        `[${metric}] score=${score.toFixed(4)} → ${isMatch ? 'MATCH ✅' : 'no match'}`
+      );
+
+      if (isMatch) {
+        matched     = true;
+        matchedDbId = dbRecord.id;
+        bestScore   = score;
+        claimedDbIds.add(dbRecord.id);
+        break;
+      }
+    }
+
+    results.push({ cropIndex: cropIdx, matched, matchedDbId, score: bestScore, metric });
+
+    console.log(
+      `[checkMatchSimilarity] crop[${cropIdx}] final → matched=${matched}` +
+      (matchedDbId ? `, dbId=${matchedDbId}` : '')
+    );
+  }
+
+  const anyMatched = results.some((r) => r.matched);
+
+  console.log(
+    `[checkMatchSimilarity] Summary — ` +
+    `crops=${cropEmbeddings.length}, ` +
+    `matched=${results.filter((r) => r.matched).length}, ` +
+    `anyMatched=${anyMatched}`
+  );
+
+  return { anyMatched, results };
 }

@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { postCaption } from '../../controllers/v1/captionController';
 import { postChatStream } from '../../controllers/v1/chatController';
 import { postImageEmbedding, postTextEmbedding } from '../../controllers/v1/embeddingController';
-import { postFaceDetection, detectFaceDetection } from '../../controllers/v1/faceDetectionController';
+import { postFaceDetection, detectFaceDetection, matchFaceEmbeddings } from '../../controllers/v1/faceDetectionController';
 const router = Router();
 
 router.post('/embeddings/text', postTextEmbedding);
@@ -11,4 +11,5 @@ router.post('/captions', postCaption);
 router.post('/chat/stream', postChatStream);
 router.post('/face-detection', postFaceDetection);
 router.post('/face-detection/embeddings', detectFaceDetection);
+router.post('/face-detection/match', matchFaceEmbeddings);
 export default router;

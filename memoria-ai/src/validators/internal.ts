@@ -33,3 +33,26 @@ export type FaceEmbeddingResult = {
   embeddings: number[][];
   count: number;
 };
+
+//Face embedding validation comparison from DB
+// Represents one row fetched from your DB embeddings table
+export interface DbEmbeddingRecord {
+  id: string;              // DB primary key / person ID
+  embedding: number[];     // 128-dim vector stored in DB
+  label?: string;          // optional display name
+}
+
+// Result per crop face
+export interface CropMatchResult {
+  cropIndex: number;       // which crop embed (0-based)
+  matched: boolean;
+  matchedDbId?: string;    // the DB record id it matched against
+  score?: number;
+  metric:'euclidean' | 'cosine';
+}
+
+// Top-level return
+export interface SimilarityCheckResult {
+  anyMatched: boolean;     // true if at least one crop matched a DB record
+  results: CropMatchResult[];
+}

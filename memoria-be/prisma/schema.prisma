@@ -23,6 +23,7 @@ model User {
   conversations      Conversation[]
   event_photos       event_photos[]
   events             events[]
+  face_groups        face_groups[]
   photos             Photo[]
 
   @@map("users")
@@ -49,12 +50,36 @@ model Photo {
   aiResult        AIResult?
   circlePhotos    CirclePhoto[]
   event_photos    event_photos[]
+  faces           Face[]
   user            User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, capturedAt])
   @@index([userId, deletedAt])
   @@index([hash])
   @@map("photos")
+}
+
+model Face {
+  id                String                 @id @default(dbgenerated("(gen_random_uuid())::text"))
+  photoId           String                 @map("photo_id")
+  coverFaceId       Int                    @map("cover_face_id")
+  faceX             Float?                 @map("face_x")
+  faceY             Float?                 @map("face_y")
+  faceWidth         Float?                 @map("face_width")
+  faceHeight        Float?                 @map("face_height")
+  faceLabel         String?                @map("face_label") @db.VarChar(50)
+  confidence        Float?
+  createdAt         DateTime?              @default(now()) @map("created_at") @db.Timestamp(6)
+  face_match_status Boolean?               @default(false)
+  embedding         Unsupported("vector")?
+  group_id          String?
+  face_groups       face_groups?           @relation(fields: [group_id], references: [id], onUpdate: NoAction, map: "fk_faces_group")
+  photo             Photo                  @relation(fields: [photoId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_faces_photo")
+
+  @@unique([photoId, coverFaceId], map: "unique_photo_face")
+  @@index([photoId], map: "idx_faces_photo_id")
+  @@index([group_id], map: "idx_faces_group_id")
+  @@map("faces")
 }
 
 model AIResult {
@@ -74,15 +99,10 @@ model AIResult {
   timesVisitedLocation Int?                   @map("times_visited_location")
   isItFrequent         Boolean?               @map("is_it_frequent")
   usageLimitBlocked    Boolean?               @map("usage_limit_blocked")
-  faceX                Float?                 @map("face_x")
-  faceY                Float?                 @map("face_y")
-  faceWidth            Float?                 @map("face_width")
-  faceHeight           Float?                 @map("face_height")
-  confidence           Float?
-  faceLabel            String?                @map("face_label") @db.VarChar(50)
   face_match_status    Boolean?
   coverFaceId          Int?                   @map("cover_face_id")
   embedding            Unsupported("vector")? @map("embedding")
+  faceIndex            Int?                   @map("coverface_session_id")
   photo                Photo                  @relation(fields: [photoId], references: [id], onDelete: Cascade)
 
   @@index([processingStatus])
@@ -205,4 +225,18 @@ model events {
   @@index([circle_id, event_date])
   @@index([circle_id])
   @@index([created_by])
+}
+
+model face_groups {
+  id             String                 @id @default(dbgenerated("(gen_random_uuid())::text"))
+  user_id        String
+  name           String?                @default("Unknown")
+  label          String?                @db.VarChar(50)
+  best_embedding Unsupported("vector")?
+  cover_face_id  String?
+  created_at     DateTime?              @default(now()) @db.Timestamp(6)
+  users          User                   @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_facegroups_user")
+  faces          Face[]
+
+  @@index([user_id], map: "idx_facegroups_user_id")
 }

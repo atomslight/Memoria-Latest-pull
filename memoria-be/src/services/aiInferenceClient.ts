@@ -74,5 +74,14 @@ export const aiInferenceClient = {
     mimeType: string
   ): Promise<FaceDetectionResult> {
     return postJson<FaceDetectionResult>('/internal/v1/face-detection', { imageUrl, mimeType });
+  },
+  async matchFaceEmbeddings(
+    cropEmbeddings: number[][],
+    dbRecords: Array<{ id: string; embedding: number[]; label?: string }>
+  ): Promise<{ anyMatched: boolean; results: any[] }> {
+    return postJson('/internal/v1/face-detection/match', {
+      cropEmbeddings,
+      dbRecords,
+    });
   }
 };
